@@ -9,11 +9,14 @@ import tagulous.models
 import tagulous
 from django.db import models
 from django.db.models.query_utils import Q
+from django.template.defaultfilters import floatformat
+from django.utils.html import strip_tags
 from dry_rest_permissions.generics import allow_staff_or_superuser
 from django.template.defaultfilters import slugify
 
 
 from tunga import settings
+from tunga.settings.base import TUNGA_SHARE_PERCENTAGE, TUNGA_SHARE_EMAIL
 from tunga_auth.models import USER_TYPE_DEVELOPER
 from tunga_profiles.models import Skill, Connection
 from tunga_settings.models import VISIBILITY_DEVELOPER, VISIBILITY_MY_TEAM, VISIBILITY_CUSTOM, VISIBILITY_CHOICES
@@ -27,6 +30,11 @@ CURRENCY_CHOICES = (
     (CURRENCY_EUR, 'EUR'),
     (CURRENCY_USD, 'USD')
 )
+
+CURRENCY_SYMBOLS = {
+    'EUR': '€',
+    'USD': '$'
+}
 
 UPDATE_SCHEDULE_HOURLY = 1
 UPDATE_SCHEDULE_DAILY = 2
@@ -113,25 +121,32 @@ class Task(models.Model):
         return request.user == self.user or \
                self.participation_set.filter((Q(accepted=True) | Q(responded=False)), user=request.user).count()
 
-    @property
-    def display_fee(self):
-        currency_symbols = {'EUR': '€', 'USD': '$'}
-        if self.currency in currency_symbols:
-            return '%s%s' % (currency_symbols[self.currency], self.fee)
-        return self.fee
+    def display_fee(self, amount=None):
+        if amount is None:
+            amount = self.fee
+        if self.currency in CURRENCY_SYMBOLS:
+            return '%s%s' % (CURRENCY_SYMBOLS[self.currency], floatformat(amount, arg=-2))
+        return amount
 
     @property
     def summary(self):
-        return '%s - Fee: %s' % (self.title, self.display_fee)
+        return '%s - Fee: %s' % (self.title, self.display_fee())
+
+    @property
+    def excerpt(self):
+        try:
+            return strip_tags(self.description).strip()
+        except:
+            return None
 
     def get_default_participation(self):
         tags = ['tunga.io', 'tunga']
         if self.skills:
             tags.extend(str(self.skills).split(','))
         return {
-            'type': 'payment', 'language': 'EN', 'title': self.summary, 'description': self.summary,
+            'type': 'payment', 'language': 'EN', 'title': self.summary, 'description': self.excerpt or self.summary,
             'keywords': tags, 'participants': [
-                {'id': 'mailto:admin@tunga.io', 'role': 'owner', 'share': '10%'}
+                {'id': 'mailto:%s' % TUNGA_SHARE_EMAIL, 'role': 'owner', 'share': '{share}%'.format(**{'share': TUNGA_SHARE_PERCENTAGE})}
             ]
         }
 
@@ -191,7 +206,7 @@ class Task(models.Model):
                         if len(additional_participants):
                             participation_meta[meta_key].extend(additional_participants)
                             has_script = True
-                elif task_script[meta_key]:
+                elif meta_key in task_script:
                     participation_meta[meta_key] = task_script[meta_key]
         return participation_meta, has_script
 
@@ -201,7 +216,7 @@ class Task(models.Model):
         # TODO: Update local participation script to use defined shares
         if not has_script:
             participants = self.participation_set.filter(accepted=True).order_by('share')
-            total_shares = 90
+            total_shares = 100 - TUNGA_SHARE_PERCENTAGE
             num_participants = participants.count()
             for participant in participants:
                 participation_meta['participants'].append(

@@ -300,6 +300,7 @@ SWAGGER_SETTINGS = {
 
 # Local
 CONTACT_REQUEST_EMAIL_RECIPIENT = 'bart@tunga.io'
+<<<<<<< HEAD
 #celery
 
 
@@ -329,3 +330,11 @@ CELERYBEAT_SCHEDULER="djcelery.schedulers.DatabaseScheduler"
 
 import djcelery
 djcelery.setup_loader()
+TUNGA_STAFF_UPDATE_EMAIL_RECIPIENTS = ['bart@tunga.io']
+
+TUNGA_SHARE_EMAIL = 'admin@tunga.io'
+
+TUNGA_SHARE_PERCENTAGE = 13
+
+TUNGA_URL = 'https://tunga.io'
+

@@ -2,9 +2,14 @@ from django.contrib.auth import get_user_model
 from django.db.models.query_utils import Q
 from rest_framework import serializers
 
+from tunga.settings.base import TUNGA_SHARE_PERCENTAGE
 from tunga_auth.serializers import SimpleUserSerializer, UserSerializer
 from tunga_tasks.emails import send_new_task_email, send_task_application_not_accepted_email
+<<<<<<< HEAD
 from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,TaskUpdate,Milestone
+=======
+from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask, UPDATE_SCHEDULE_DAILY
+>>>>>>> 00dd8071cb8cdeda402dc9118f0d981b96db43b0
 from tunga_utils.serializers import ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer, SkillSerializer, \
     CreateOnlyCurrentUserDefault, SimpleUserSerializer
 
@@ -58,7 +63,8 @@ class TaskDetailsSerializer(ContentTypeAnnotatedSerializer):
 
 class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
     user = serializers.PrimaryKeyRelatedField(required=False, read_only=True, default=CreateOnlyCurrentUserDefault())
-    display_fee = serializers.CharField(required=False, read_only=True)
+    display_fee = serializers.SerializerMethodField(required=False, read_only=True)
+    excerpt = serializers.CharField(required=False, read_only=True)
     skills = serializers.CharField(required=True, allow_blank=True, allow_null=True)
     deadline = serializers.DateTimeField(required=False, allow_null=True)
     can_apply = serializers.SerializerMethodField(read_only=True, required=False)
@@ -70,6 +76,7 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
     participants = serializers.PrimaryKeyRelatedField(many=True, queryset=get_user_model().objects.all(), required=False, write_only=True)
     milestones = serializers.PrimaryKeyRelatedField(many=True, queryset=Milestone.objects.all(), required=False, write_only=True)
     open_applications = serializers.SerializerMethodField(required=False, read_only=True)
+    update_schedule_display = serializers.SerializerMethodField(required=False, read_only=True)
 
     class Meta:
         model = Task
@@ -151,12 +158,27 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
             if assignee and changed_assignee:
                 Participation.objects.exclude(user__id=assignee).filter(task=task).update(assignee=False)
 
+<<<<<<< HEAD
 
     def save_milestones(self, task, milestones):
         if milestones:
            for milestone_data  in milestones:
                ms =  Milestone.objects.create(task=task, **milestone_data)
                task.milestones.add(ms)
+=======
+    def __get_current_user(self):
+        request = self.context.get("request", None)
+        if request:
+            return getattr(request, "user", None)
+        return None
+
+    def get_display_fee(self, obj):
+        user = self.__get_current_user()
+        amount = None
+        if user and user.is_developer:
+            amount = obj.fee*(1 - TUNGA_SHARE_PERCENTAGE*0.01)
+        return obj.display_fee(amount=amount)
+>>>>>>> 00dd8071cb8cdeda402dc9118f0d981b96db43b0
 
     def get_can_apply(self, obj):
         if obj.closed or not obj.apply:
@@ -220,6 +242,16 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
 
     def get_open_applications(self, obj):
         return obj.application_set.filter(responded=False).count()
+
+    def get_update_schedule_display(self, obj):
+        if obj.update_interval and obj.update_interval_units:
+            if obj.update_interval == 1 and obj.update_interval_units == UPDATE_SCHEDULE_DAILY:
+                return 'Daily'
+            interval_units = str(obj.get_update_interval_units_display()).lower()
+            if obj.update_interval == 1:
+                return 'Every %s' % interval_units
+            return 'Every %s %ss' % (obj.update_interval, interval_units)
+        return None
 
 
 class ApplicationDetailsSerializer(SimpleApplicationSerializer):
