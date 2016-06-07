@@ -71,7 +71,11 @@ INSTALLED_APPS = [
     'tunga_messages',
     'tunga_comments',
     'tunga_utils',
-    'tunga_settings'
+    'tunga_settings',
+
+    #celery
+    'djcelery',
+
 ]
 
 MIDDLEWARE_CLASSES = [
@@ -296,3 +300,32 @@ SWAGGER_SETTINGS = {
 
 # Local
 CONTACT_REQUEST_EMAIL_RECIPIENT = 'bart@tunga.io'
+#celery
+
+
+
+
+BROKER_HOST = "localhost"
+BROKER_BACKEND="redis"
+BROKER_URL = 'redis://localhost:6379'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+
+REDIS_PORT=6379
+REDIS_HOST = "localhost"
+BROKER_USER = ""
+BROKER_PASSWORD =""
+BROKER_VHOST = "0"
+REDIS_DB = 0
+REDIS_CONNECT_RETRY = True
+CELERY_SEND_EVENTS=True
+CELERY_RESULT_BACKEND='redis'
+CELERY_TASK_RESULT_EXPIRES =  10
+CELERYBEAT_SCHEDULER="djcelery.schedulers.DatabaseScheduler"
+
+
+import djcelery
+djcelery.setup_loader()

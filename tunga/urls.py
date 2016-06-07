@@ -28,7 +28,7 @@ from tunga_profiles.views import ProfileView, EducationViewSet, WorkViewSet, Con
     NotificationView, CountryListView
 from tunga_settings.views import UserSettingsView
 from tunga_tasks.views import TaskViewSet, ApplicationViewSet, ParticipationViewSet, TaskRequestViewSet, \
-    SavedTaskViewSet, task_webscrapers
+    SavedTaskViewSet, task_webscrapers,TaskMilestonesViewSet
 from tunga_activity.views import ActionViewSet
 from tunga_utils.views import SkillViewSet, ContactRequestView
 
@@ -48,6 +48,7 @@ router.register(r'message', MessageViewSet)
 router.register(r'reply', ReplyViewSet)
 router.register(r'activity', ActionViewSet)
 router.register(r'skill', SkillViewSet)
+router.register(r'milestones', TaskMilestonesViewSet)
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),

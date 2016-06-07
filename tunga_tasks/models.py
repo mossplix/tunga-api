@@ -6,15 +6,20 @@ import urllib
 
 import requests
 import tagulous.models
+import tagulous
 from django.db import models
 from django.db.models.query_utils import Q
 from dry_rest_permissions.generics import allow_staff_or_superuser
+from django.template.defaultfilters import slugify
+
 
 from tunga import settings
 from tunga_auth.models import USER_TYPE_DEVELOPER
 from tunga_profiles.models import Skill, Connection
 from tunga_settings.models import VISIBILITY_DEVELOPER, VISIBILITY_MY_TEAM, VISIBILITY_CUSTOM, VISIBILITY_CHOICES
-
+from tunga_comments.models import Comment
+from django.db.models.signals import post_save
+from .tasks import send_email
 CURRENCY_EUR = 'EUR'
 CURRENCY_USD = 'USD'
 
@@ -70,6 +75,10 @@ class Task(models.Model):
     participants = models.ManyToManyField(
             settings.AUTH_USER_MODEL, through='Participation', through_fields=('task', 'user'),
             related_name='task_participants', blank=True)
+    milestones = models.ManyToManyField('Milestone',
+         blank = True,
+         related_name='task_milestones',through='TaskMilestone',through_fields=('task', 'milestone')
+         )
     satisfaction = models.SmallIntegerField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     apply_closed_at = models.DateTimeField(blank=True, null=True)
@@ -268,3 +277,58 @@ class SavedTask(models.Model):
 
     def __unicode__(self):
         return '%s - %s' % (self.user.get_short_name() or self.user.username, self.task.title)
+
+class Milestone(models.Model):
+    CLOSED = 3
+    ACTIVE = 2
+    OVERDUE = 1
+    COMPLETED = 0
+    title = models.CharField(max_length=50)
+    slug = models.SlugField(editable=False, null=True, blank=True, max_length=200)
+    task = models.ForeignKey(Task,on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    due_date = models.DateTimeField(blank=True, null=True)
+    state = models.IntegerField(choices=((COMPLETED,"Completed"),(OVERDUE,"Overdue"),( ACTIVE,"active"),(CLOSED,"closed")),default=2,)
+    description = models.TextField()
+    order = models.SmallIntegerField(default=0)
+    tags = tagulous.models.TagField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+
+    def overdue(self):
+        pass
+
+    def due_thisweek(self):
+        pass
+
+    def due_thismonth(self):
+        pass
+
+class TaskMilestone(models.Model):
+    task = models.ForeignKey(Task,on_delete=models.CASCADE)
+    milestone = models.ForeignKey(Milestone,on_delete=models.CASCADE)
+
+
+class TaskUpdate(Comment):
+    task = models.ForeignKey(Task, related_name='task_updates')
+    tags = tagulous.models.TagField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+
+    def overdue(self):
+        pass
+
+    def due_thisweek(self):
+        pass
+
+    def due_thismonth(self):
+        pass
+
+def handle_task_update(sender, instance, created, **kwargs):
+    send_email.delay(instance)
+
+
+post_save.connect(handle_task_update, sender=TaskUpdate,weak=False)
+

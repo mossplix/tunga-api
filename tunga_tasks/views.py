@@ -10,9 +10,9 @@ from rest_framework.response import Response
 
 from tunga_tasks.filterbackends import TaskFilterBackend
 from tunga_tasks.filters import TaskFilter, ApplicationFilter, ParticipationFilter, TaskRequestFilter, SavedTaskFilter
-from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask
+from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,Milestone,TaskUpdate
 from tunga_tasks.serializers import TaskSerializer, ApplicationSerializer, ParticipationSerializer, \
-    TaskRequestSerializer, SavedTaskSerializer
+    TaskRequestSerializer, SavedTaskSerializer,MilestoneSerializer
 from tunga_utils.filterbackends import DEFAULT_FILTER_BACKENDS
 
 
@@ -99,3 +99,23 @@ def task_webscrapers(request, pk=None):
         return render(request, 'tunga/index.html', {'task': task, 'participation': participation, 'payment': payment})
     except (Task.DoesNotExist, Task.MultipleObjectsReturned):
         return redirect('/task/')
+
+class TaskMilestonesViewSet(viewsets.ModelViewSet):
+    """
+    Task Milestone  Resource
+    """
+    queryset = Milestone.objects.all()
+    serializer_class = MilestoneSerializer
+    permission_classes = [IsAuthenticated, DRYObjectPermissions]
+
+    @detail_route(
+        methods=['get'], url_path='meta',
+        permission_classes=[IsAuthenticated]
+    )
+    def meta(self, request, pk=None):
+        """
+        Get task meta data
+        """
+        task = get_object_or_404(Task, pk=pk)
+        milestones = task.milestones.all()
+        return Response({'milestones': milestones})
