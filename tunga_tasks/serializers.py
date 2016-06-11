@@ -5,11 +5,7 @@ from rest_framework import serializers
 from tunga.settings.base import TUNGA_SHARE_PERCENTAGE
 from tunga_auth.serializers import SimpleUserSerializer, UserSerializer
 from tunga_tasks.emails import send_new_task_email, send_task_application_not_accepted_email
-<<<<<<< HEAD
-from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,TaskUpdate,Milestone
-=======
-from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask, UPDATE_SCHEDULE_DAILY
->>>>>>> 00dd8071cb8cdeda402dc9118f0d981b96db43b0
+from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,TaskUpdate,Milestone,TaskMilestone,UPDATE_SCHEDULE_DAILY
 from tunga_utils.serializers import ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer, SkillSerializer, \
     CreateOnlyCurrentUserDefault, SimpleUserSerializer
 
@@ -20,6 +16,11 @@ class SimpleTaskSerializer(ContentTypeAnnotatedSerializer):
     class Meta:
         model = Task
         fields = ('id', 'user', 'title', 'currency', 'fee', 'closed', 'paid', 'display_fee')
+
+class MilestoneSerializer(serializers.HyperlinkedModelSerializer):
+    task = SimpleTaskSerializer()
+    class Meta:
+        model = Milestone
 
 
 class SimpleApplicationSerializer(ContentTypeAnnotatedSerializer):
@@ -44,6 +45,7 @@ class TaskDetailsSerializer(ContentTypeAnnotatedSerializer):
     assignee = serializers.SerializerMethodField(required=False, read_only=True)
     applications = SimpleApplicationSerializer(many=True, source='application_set')
     participation = SimpleParticipationSerializer(many=True, source='participation_set')
+    milestones = SimpleParticipationSerializer(many=True, source='milestone_set')
 
     class Meta:
         model = Task
@@ -74,7 +76,7 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
     summary = serializers.CharField(read_only=True, required=False)
     assignee = serializers.SerializerMethodField(required=False, read_only=True)
     participants = serializers.PrimaryKeyRelatedField(many=True, queryset=get_user_model().objects.all(), required=False, write_only=True)
-    milestones = serializers.PrimaryKeyRelatedField(many=True, queryset=Milestone.objects.all(), required=False, write_only=True)
+    milestones =  MilestoneSerializer(many=True)
     open_applications = serializers.SerializerMethodField(required=False, read_only=True)
     update_schedule_display = serializers.SerializerMethodField(required=False, read_only=True)
 
@@ -91,12 +93,10 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
             skills = validated_data.pop('skills')
         if 'participants' in validated_data:
             participants = validated_data.pop('participants')
-        if 'milestones' in validated_data:
-            milestones = validated_data.pop('milestones')
         instance = super(TaskSerializer, self).create(validated_data)
         self.save_skills(instance, skills)
         self.save_participants(instance, participants)
-        self.save_milestones(instance, milestones)
+
 
         # Triggered here instead of in the post_save signal to allow skills to be attached first
         # TODO: Consider moving this trigger
@@ -158,14 +158,6 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
             if assignee and changed_assignee:
                 Participation.objects.exclude(user__id=assignee).filter(task=task).update(assignee=False)
 
-<<<<<<< HEAD
-
-    def save_milestones(self, task, milestones):
-        if milestones:
-           for milestone_data  in milestones:
-               ms =  Milestone.objects.create(task=task, **milestone_data)
-               task.milestones.add(ms)
-=======
     def __get_current_user(self):
         request = self.context.get("request", None)
         if request:
@@ -178,7 +170,7 @@ class TaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSerializer):
         if user and user.is_developer:
             amount = obj.fee*(1 - TUNGA_SHARE_PERCENTAGE*0.01)
         return obj.display_fee(amount=amount)
->>>>>>> 00dd8071cb8cdeda402dc9118f0d981b96db43b0
+
 
     def get_can_apply(self, obj):
         if obj.closed or not obj.apply:
@@ -331,14 +323,23 @@ class SavedTaskSerializer(ContentTypeAnnotatedSerializer, DetailAnnotatedSeriali
         details_serializer = SavedTaskDetailsSerializer
 
 
-class TaskUpdateSerializer(serializers.HyperlinkedModelSerializer):
+class TaskUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskUpdate
 
+    def save(self):
+        tu = super(TaskUpdateSerializer, self).save()
+        return tu
 
-class MilestoneSerializer(serializers.HyperlinkedModelSerializer):
-    task = SimpleTaskSerializer()
+class TaskMilestoneSerializer(serializers.ModelSerializer):
+
     class Meta:
-        model = Milestone
+        model = TaskMilestone
+
+    def save(self):
+        tm = super(TaskMilestoneSerializer, self).save()
+        return tm
+
+
 

@@ -300,7 +300,7 @@ SWAGGER_SETTINGS = {
 
 # Local
 CONTACT_REQUEST_EMAIL_RECIPIENT = 'bart@tunga.io'
-<<<<<<< HEAD
+
 #celery
 
 

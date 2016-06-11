@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from dry_rest_permissions.generics import allow_staff_or_superuser
+import tagulous
 
 from tunga import settings
 
@@ -14,6 +15,7 @@ class Comment(models.Model):
     body = models.TextField()
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, verbose_name=_('content type'))
     object_id = models.PositiveIntegerField()
+    tags = tagulous.models.TagField( blank=True,null=True)
     content_object = GenericForeignKey('content_type', 'object_id')
     created_at = models.DateTimeField(auto_now_add=True)
 

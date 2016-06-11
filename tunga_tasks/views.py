@@ -7,12 +7,17 @@ from rest_framework.decorators import detail_route
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer
+from rest_framework.views import APIView
+from rest_framework.exceptions import APIException
+from rest_framework import status
+from django.http import Http404
 
 from tunga_tasks.filterbackends import TaskFilterBackend
 from tunga_tasks.filters import TaskFilter, ApplicationFilter, ParticipationFilter, TaskRequestFilter, SavedTaskFilter
-from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,Milestone,TaskUpdate
+from tunga_tasks.models import Task, Application, Participation, TaskRequest, SavedTask,Milestone,TaskUpdate,TaskMilestone
 from tunga_tasks.serializers import TaskSerializer, ApplicationSerializer, ParticipationSerializer, \
-    TaskRequestSerializer, SavedTaskSerializer,MilestoneSerializer
+    TaskRequestSerializer, SavedTaskSerializer,MilestoneSerializer,TaskMilestoneSerializer,TaskUpdateSerializer
 from tunga_utils.filterbackends import DEFAULT_FILTER_BACKENDS
 
 
@@ -119,3 +124,145 @@ class TaskMilestonesViewSet(viewsets.ModelViewSet):
         task = get_object_or_404(Task, pk=pk)
         milestones = task.milestones.all()
         return Response({'milestones': milestones})
+
+
+
+class ResourceDoesNotExist(APIException):
+    status_code = 404
+
+
+class MilestoneDetailEndpoint(APIView):
+    permission_classes = [IsAuthenticated, DRYObjectPermissions]
+
+    def get_object(self, pk):
+        try:
+            return Milestone.objects.get(pk=pk)
+        except Milestone.DoesNotExist:
+            raise Http404
+
+
+    def get(self, request,pk):
+        """
+        Retrieve a milestone
+        ````````````````````````
+        Return details on an individual milestone
+        :param string id: the if of the milestone
+        """
+        milestone  = self.get_object(pk)
+        serializer = MilestoneSerializer(milestone)
+        return Response(serializer.data)
+
+
+    def put(self, request, pk):
+        """
+        Update an milestone
+        ``````````````````````
+
+        Update various attributes and configurable settings for the given
+        organization.
+
+        :pparam number id: id of the milestone
+
+        """
+        milestone  = self.get_object(pk)
+        serializer = MilestoneSerializer(milestone, data=request.DATA,
+                                            partial=True)
+        if serializer.is_valid():
+            milestone = serializer.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def delete(self, request, pk):
+        """
+        Delete a milestone
+        ``````````````````````
+        :pparam integer id: the id of the milestone
+        """
+        milestone = self.get_object(pk)
+        milestone.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MilestoneIndexEndpoint(APIView):
+    permission_classes = [IsAuthenticated, DRYObjectPermissions]
+
+    def get_task(self, task_id):
+        try:
+            return Task.objects.get(pk=task_id)
+        except Task.DoesNotExist:
+            raise Http404
+
+
+    def get(self, request,task_id):
+        """
+        List of Milestones For Task
+        ```````````````````````
+        Return a list of milestones for task
+        """
+        task = self.get_task(task_id)
+        milestones = task.milestones.all()
+        serializer = MilestoneSerializer(milestones, many=True)
+        return Response(serializer.data)
+
+
+    def post(self, request,task_id):
+        """
+        Create a New Milestone
+        `````````````````````````
+        """
+        task = self.get_task(task_id)
+
+        serializer =  MilestoneSerializer(data=request.DATA)
+
+        if serializer.is_valid():
+            milestone = serializer.save()
+            task_milestone = TaskMilestone.objects.create(task=task,milestone=milestone)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TaskUpdateIndexEndpoint(APIView):
+    permission_classes = [IsAuthenticated, DRYObjectPermissions]
+
+    def get_task(self, task_id):
+        try:
+            return Task.objects.get(pk=task_id)
+        except Task.DoesNotExist:
+            raise Http404
+
+
+    def get(self, request,task_id):
+        """
+        List of task updates  For Task
+        ```````````````````````
+        Return a list of milestones for task
+        """
+        task = self.get_task(task_id)
+        task_updates = TaskUpdate.objects.filter(task_id=task_id)
+        milestone = request.GET.get('milestone')
+        if milestone:
+            task_updates = task_updates.update(tags=milestone)
+        serializer = TaskUpdateSerializer(task_updates, many=True)
+        return Response(serializer.data)
+
+
+    def post(self, request,task_id):
+        """
+        Create a New Milestone
+        `````````````````````````
+        """
+        task = self.get_task(task_id)
+        data=request.data
+        data["task"] = task
+
+        serializer =  MilestoneSerializer(data=request.data)
+
+        if serializer.is_valid():
+            milestone = serializer.save()
+            task_update = TaskUpdate.objects.create(task=task,milestone=milestone)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

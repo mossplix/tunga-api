@@ -28,7 +28,7 @@ from tunga_profiles.views import ProfileView, EducationViewSet, WorkViewSet, Con
     NotificationView, CountryListView
 from tunga_settings.views import UserSettingsView
 from tunga_tasks.views import TaskViewSet, ApplicationViewSet, ParticipationViewSet, TaskRequestViewSet, \
-    SavedTaskViewSet, task_webscrapers,TaskMilestonesViewSet
+    SavedTaskViewSet, task_webscrapers,TaskMilestonesViewSet, MilestoneIndexEndpoint,MilestoneDetailEndpoint,TaskUpdateIndexEndpoint
 from tunga_activity.views import ActionViewSet
 from tunga_utils.views import SkillViewSet, ContactRequestView
 
@@ -75,5 +75,11 @@ urlpatterns = [
     url(r'^task/(?P<pk>\d+)/$', task_webscrapers, name="task-detail"),
     url(r'^reset-password/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,20})/$',
         password_reset_confirm, name='password_reset_confirm'),
-    url(r'^$', router.get_api_root_view(), name='backend-root')
+    url(r'^$', router.get_api_root_view(), name='backend-root'),
+       url(r'^milestones/(?P<id>\d+)$',
+        MilestoneDetailEndpoint.as_view(), name='api-milestone-details'),
+         url(r'^milestones/$',
+        MilestoneIndexEndpoint.as_view(), name='api-milestone-index'),
+     url(r'^task_update/$',
+        TaskUpdateIndexEndpoint.as_view(), name='api-milestone-index'),
 ]

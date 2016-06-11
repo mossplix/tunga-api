@@ -5,6 +5,7 @@ import re
 import urllib
 
 import requests
+import datetime
 import tagulous.models
 import tagulous
 from django.db import models
@@ -23,6 +24,10 @@ from tunga_settings.models import VISIBILITY_DEVELOPER, VISIBILITY_MY_TEAM, VISI
 from tunga_comments.models import Comment
 from django.db.models.signals import post_save
 from .tasks import send_email
+from django.contrib.contenttypes.fields import GenericRelation
+from django.core.validators import MaxValueValidator,MinValueValidator
+
+
 CURRENCY_EUR = 'EUR'
 CURRENCY_USD = 'USD'
 
@@ -304,7 +309,9 @@ class Milestone(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     due_date = models.DateTimeField(blank=True, null=True)
     state = models.IntegerField(choices=((COMPLETED,"Completed"),(OVERDUE,"Overdue"),( ACTIVE,"active"),(CLOSED,"closed")),default=2,)
+    type = models.IntegerField(choices=((1,"interval"),(2,"update"),( 3,"update_request")),default=2,)
     description = models.TextField()
+    percentage_done = models.PositiveIntegerField(validators=[MaxValueValidator(100),MinValueValidator(0)],null=True,blank=True)
     order = models.SmallIntegerField(default=0)
     tags = tagulous.models.TagField()
     created = models.DateTimeField(auto_now_add=True)
@@ -320,30 +327,87 @@ class Milestone(models.Model):
     def due_thismonth(self):
         pass
 
+class TaskUpdate(models.Model):
+    milestone = models.ForeignKey(Milestone,null=True,blank=True)
+    status = models.CharField(max_length=50,default="on schedule")
+    accomplished  = models.CharField(max_length=400,blank=True,null=True)
+    percentage_done = models.PositiveIntegerField(validators=[MaxValueValidator(100),MinValueValidator(0)],null=True,blank=True)
+    next_steps = models.CharField(max_length=400,blank=True,null=True)
+    other_remarks =  models.CharField(max_length=400,blank=True,null=True)
+    comments = GenericRelation(Comment,null=True, blank=True, default=None)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+
+
+
+class TaskUpdateFile(models.Model):
+    name = models.CharField(max_length=200)
+    task_update = models.ForeignKey(TaskUpdate,related_name="files")
+    file = models.FileField(upload_to="task_update_files")
+    size = models.PositiveIntegerField(validators=[MaxValueValidator(20000),MinValueValidator(1)]) #20 mbs
+    type = models.CharField(max_length=64)
+
+
+
 class TaskMilestone(models.Model):
     task = models.ForeignKey(Task,on_delete=models.CASCADE)
     milestone = models.ForeignKey(Milestone,on_delete=models.CASCADE)
 
 
-class TaskUpdate(Comment):
-    task = models.ForeignKey(Task, related_name='task_updates')
-    tags = tagulous.models.TagField()
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
 
 
-    def overdue(self):
-        pass
-
-    def due_thisweek(self):
-        pass
-
-    def due_thismonth(self):
-        pass
 
 def handle_task_update(sender, instance, created, **kwargs):
+
     send_email.delay(instance)
 
+def create_initial_milestones(sender, instance, created, **kwargs):
+    if created:
+        milestone = Milestone.objects.create(title="Task Created",task=instance,order=0,description=str(instance.created),user=instance.user)
+        TaskMilestone.objects.create(milestone=milestone,task=instance)
 
-post_save.connect(handle_task_update, sender=TaskUpdate,weak=False)
+    if instance.participation.all().exists():
+        devs = " ".join(instance.participation.values("user__first_name",flat=True))
+        milestone,_ = Milestone.objects.get_or_create(title="Dev(s) Selected",order=1,task=instance,description=devs,user=instance.user)
+        TaskMilestone.objects.get_or_create(milestone=milestone,task=instance)
+
+    if instance.deadline:
+        milestone,_ = Milestone.objects.get_or_create(title="Deadline",task=instance,description=str(instance.deadline),user=instance.user,due_date=instance.deadline)
+        TaskMilestone.objects.create(milestone=milestone,task=instance)
+    if instance.update_interval and instance.deadline and instance.participation.all().exists():
+
+        last_milestone = Milestone.objects.get(order=1)
+        seconds = (instance.deadline - last_milestone.created).total_seconds()
+
+        interval = dict(
+            UPDATE_SCHEDULE_HOURLY = 3600,
+            UPDATE_SCHEDULE_DAILY = 86400,
+            UPDATE_SCHEDULE_WEEKLY = 604800,
+            UPDATE_SCHEDULE_MONTHLY = 2592000,
+            UPDATE_SCHEDULE_QUATERLY = 7776000,
+            UPDATE_SCHEDULE_ANNUALLY = 31536000,
+
+        )
+        update_interval = interval(instance.update_interval_units)*instance.update_interval #seconds
+        for r in range(update_interval,update_interval,seconds):
+            milestone,_ = Milestone.objects.get_or_create(title="Update",task=instance,description=str(instance.deadline),user=instance.user,due_date=(last_milestone.created+datetime.timedelta(seconds=r)))
+            TaskMilestone.objects.get_or_create(milestone=milestone,task=instance)
+
+
+def create_milestones(sender, instance, created, **kwargs):
+    if created:
+        milestone = Milestone.objects.create(title="Update",task=instance,description="",user=instance.user)
+        TaskMilestone.objects.create(milestone=milestone,task=instance)
+
+
+
+
+
+
+post_save.connect(create_initial_milestones, sender=Task,weak=False)
+
+post_save.connect(create_milestones, sender=TaskUpdate,weak=False)
+
+post_save.connect(handle_task_update, sender=Task,weak=False)
 
