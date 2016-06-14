@@ -1,0 +1,12 @@
+{% load i18n %}{% autoescape off %}{% block email_content %}
+Hello {{milestone.task.first_name}},
+
+You have an upcoming  milestone and the client would like an update
+
+
+
+Click the link below to enter your milestone update:
+
+{{ ms_update_url }}
+
+{% endblock %}{% endautoescape %}

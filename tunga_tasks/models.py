@@ -23,7 +23,7 @@ from tunga_profiles.models import Skill, Connection
 from tunga_settings.models import VISIBILITY_DEVELOPER, VISIBILITY_MY_TEAM, VISIBILITY_CUSTOM, VISIBILITY_CHOICES
 from tunga_comments.models import Comment
 from django.db.models.signals import post_save
-from .tasks import send_email
+from .tasks import send_owner_email
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MaxValueValidator,MinValueValidator
 
@@ -309,10 +309,11 @@ class Milestone(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     due_date = models.DateTimeField(blank=True, null=True)
     state = models.IntegerField(choices=((COMPLETED,"Completed"),(OVERDUE,"Overdue"),( ACTIVE,"active"),(CLOSED,"closed")),default=2,)
-    type = models.IntegerField(choices=((1,"interval"),(2,"update"),( 3,"update_request")),default=2,)
+    type = models.IntegerField(choices=((1,"interval"),(2,"update"),( 3,"update_request"),( 4,"start")),default=2,)
     description = models.TextField()
     percentage_done = models.PositiveIntegerField(validators=[MaxValueValidator(100),MinValueValidator(0)],null=True,blank=True)
     order = models.SmallIntegerField(default=0)
+    update_sent = models.NullBooleanField()
     tags = tagulous.models.TagField()
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
@@ -360,16 +361,17 @@ class TaskMilestone(models.Model):
 
 def handle_task_update(sender, instance, created, **kwargs):
 
-    send_email.delay(instance)
+    send_owner_email.delay(instance.pk)
 
 def create_initial_milestones(sender, instance, created, **kwargs):
     if created:
-        milestone = Milestone.objects.create(title="Task Created",task=instance,order=0,description=str(instance.created),user=instance.user)
+
+        milestone = Milestone.objects.create(title="Task Created",type=4,task=instance,order=0,description=str(instance.created_at),user=instance.user,due_date=instance.created_at)
         TaskMilestone.objects.create(milestone=milestone,task=instance)
 
-    if instance.participation.all().exists():
-        devs = " ".join(instance.participation.values("user__first_name",flat=True))
-        milestone,_ = Milestone.objects.get_or_create(title="Dev(s) Selected",order=1,task=instance,description=devs,user=instance.user)
+    if instance.participants.all().exists():
+        devs =  " ".join(instance.participants.values_list("first_name",flat=True))
+        milestone,_ = Milestone.objects.get_or_create(title="Dev(s) Selected",order=1,task=instance,description=devs,user=instance.user,due_date=instance.created_at)
         TaskMilestone.objects.get_or_create(milestone=milestone,task=instance)
 
     if instance.deadline:
@@ -399,9 +401,6 @@ def create_milestones(sender, instance, created, **kwargs):
     if created:
         milestone = Milestone.objects.create(title="Update",task=instance,description="",user=instance.user)
         TaskMilestone.objects.create(milestone=milestone,task=instance)
-
-
-
 
 
 

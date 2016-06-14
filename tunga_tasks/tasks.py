@@ -5,25 +5,39 @@ from celery.decorators import periodic_task
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 
-@periodic_task(run_every=(crontab(minute='*/15')), name="some_task", ignore_result=True)
-def send_milestones():
-    send_reminder_email()
-
 
 @task
-def send_email(task):
+def send_owner_email(task):
+    to = task.user.email
 
-    subject=""
+    subject="New Task Update"
     message = render_to_string(
-                'tunga/email/email_new_task.txt',
+                'tunga_tasks/email/email_update.txt',
                 {
-                    'owner': instance.user,
-                    'task': instance,
-                    'task_url': 'http://tunga.io/task/%s/' % instance.id
+                    'milestone': ms,
+
+                    'ms_update_url': 'http://tunga.io/task/%s/%s' % (ms.task.id,ms.id)
                 }
             )
     EmailMessage(subject, message, to=to).send()
 
 
-def send_reminder_email():
-    pass
+@task
+def send_email(ms):
+
+    subject="Please Send Us An Update On Your Task"
+    to = ms.user.email
+    message = render_to_string(
+                'tunga_tasks/email/email_update.txt',
+                {
+                    'milestone': ms,
+
+                    'ms_update_url': 'http://tunga.io/task/%s/%s' % (ms.task.id,ms.id)
+                }
+            )
+    EmailMessage(subject, message, to=to).send()
+
+@task
+def send_update_email(update_list):
+    for ms in update_list:
+        send_email(ms)
