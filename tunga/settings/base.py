@@ -279,12 +279,13 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': (
         'rest_framework.filters.DjangoFilterBackend', 'rest_framework.filters.SearchFilter'
     ),
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json'
 }
 
 REST_AUTH_SERIALIZERS = {
     'TOKEN_SERIALIZER': 'tunga_auth.serializers.TungaTokenSerializer',
     'USER_DETAILS_SERIALIZER': 'tunga_auth.serializers.UserSerializer',
-    #'PASSWORD_RESET_SERIALIZER': 'tunga_auth.serializers.TungaPasswordResetSerializer',
+    'PASSWORD_RESET_SERIALIZER': 'tunga_auth.serializers.TungaPasswordResetSerializer',
 }
 
 REST_AUTH_REGISTER_SERIALIZERS = {
